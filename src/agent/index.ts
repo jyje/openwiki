@@ -31,7 +31,6 @@ import {
   OPENROUTER_FALLBACK_MODEL_IDS,
   OPENWIKI_MODEL_ID_ENV_KEY,
   OPENWIKI_PROVIDER_ENV_KEY,
-  OPENWIKI_VERSION,
   resolveConfiguredProvider,
   type OpenWikiProvider,
 } from "../constants.js";
@@ -379,11 +378,6 @@ function resolveModelId(
   return modelId;
 }
 
-const COPILOT_DEFAULT_HEADERS = {
-  "Copilot-Integration-Id": "vscode-chat",
-  "Editor-Version": `OpenWiki/${OPENWIKI_VERSION}`,
-};
-
 async function createModel(provider: OpenWikiProvider, modelId: string) {
   if (provider === "anthropic") {
     return new ChatAnthropic(modelId, {
@@ -421,9 +415,11 @@ async function createModel(provider: OpenWikiProvider, modelId: string) {
       apiKey,
       configuration: {
         baseURL: providerConfig.baseURL,
-        defaultHeaders: COPILOT_DEFAULT_HEADERS,
       },
       model: modelId,
+      // The Copilot API serves GPT-5-family models only through the
+      // Responses API and other models only through chat completions.
+      useResponsesApi: /^gpt-5/u.test(modelId),
     });
   }
 
