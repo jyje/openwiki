@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import {
   ANTHROPIC_API_KEY_ENV_KEY,
+  applyProviderEnvAliases,
   BASETEN_API_KEY_ENV_KEY,
   FIREWORKS_API_KEY_ENV_KEY,
+  GITHUB_MODELS_API_KEY_ENV_KEY,
   isValidModelId,
   normalizeProvider,
   OPENAI_API_KEY_ENV_KEY,
@@ -33,6 +35,7 @@ export type CredentialDiagnostic = {
 const managedEnvKeys = [
   BASETEN_API_KEY_ENV_KEY,
   FIREWORKS_API_KEY_ENV_KEY,
+  GITHUB_MODELS_API_KEY_ENV_KEY,
   OPENAI_API_KEY_ENV_KEY,
   ANTHROPIC_API_KEY_ENV_KEY,
   OPENROUTER_API_KEY_ENV_KEY,
@@ -62,6 +65,8 @@ export async function loadOpenWikiEnv(): Promise<EnvMap> {
     }
   }
 
+  applyProviderEnvAliases();
+
   return env;
 }
 
@@ -74,6 +79,7 @@ export async function getCredentialDiagnostics(): Promise<
     createCredentialDiagnostic(OPENWIKI_PROVIDER_ENV_KEY, fileEnv),
     createCredentialDiagnostic(BASETEN_API_KEY_ENV_KEY, fileEnv),
     createCredentialDiagnostic(FIREWORKS_API_KEY_ENV_KEY, fileEnv),
+    createCredentialDiagnostic(GITHUB_MODELS_API_KEY_ENV_KEY, fileEnv),
     createCredentialDiagnostic(OPENAI_API_KEY_ENV_KEY, fileEnv),
     createCredentialDiagnostic(ANTHROPIC_API_KEY_ENV_KEY, fileEnv),
     createCredentialDiagnostic(OPENROUTER_API_KEY_ENV_KEY, fileEnv),

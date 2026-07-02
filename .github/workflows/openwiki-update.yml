@@ -30,6 +30,12 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENWIKI_MODEL_ID: z-ai/glm-5.2
+          # To run with GitHub Models instead of OpenRouter, using the
+          # built-in workflow token (requires `models: read` in the job
+          # permissions, no secret needed), set:
+          # OPENWIKI_PROVIDER: github-models
+          # OPENWIKI_MODEL_ID: openai/gpt-5-mini
+          # GH_MODELS_API_KEY: ${{ secrets.GITHUB_TOKEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           LANGCHAIN_PROJECT: openwiki
           LANGCHAIN_TRACING_V2: "true"

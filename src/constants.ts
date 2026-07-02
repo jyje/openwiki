@@ -2,6 +2,10 @@ export const OPEN_WIKI_DIR = "openwiki";
 export const UPDATE_METADATA_PATH = `${OPEN_WIKI_DIR}/.last-update.json`;
 export const BASETEN_API_KEY_ENV_KEY = "BASETEN_API_KEY";
 export const FIREWORKS_API_KEY_ENV_KEY = "FIREWORKS_API_KEY";
+export const GITHUB_MODELS_API_KEY_ENV_KEY = "GITHUB_MODELS_API_KEY";
+// GitHub Actions reserves secret names starting with GITHUB_, so the
+// GitHub Models key can also be provided under a GH_ prefix.
+export const GH_MODELS_API_KEY_ENV_KEY = "GH_MODELS_API_KEY";
 export const OPENAI_API_KEY_ENV_KEY = "OPENAI_API_KEY";
 export const ANTHROPIC_API_KEY_ENV_KEY = "ANTHROPIC_API_KEY";
 export const OPENROUTER_API_KEY_ENV_KEY = "OPENROUTER_API_KEY";
@@ -14,6 +18,7 @@ export type OpenWikiProvider =
   | "anthropic"
   | "baseten"
   | "fireworks"
+  | "github-models"
   | "openai"
   | "openrouter";
 
@@ -26,6 +31,7 @@ export type ProviderModelOption = {
 
 type ProviderConfig = {
   apiKeyEnvKey: string;
+  apiKeyEnvAliases?: string[];
   baseURL?: string;
   label: string;
   modelOptions: ProviderModelOption[];
@@ -37,6 +43,7 @@ export const SELECTABLE_OPENWIKI_PROVIDERS = [
   "fireworks",
   "openai",
   "anthropic",
+  "github-models",
 ] as const satisfies readonly SelectableOpenWikiProvider[];
 
 export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
@@ -47,6 +54,18 @@ export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
     modelOptions: [
       { id: "zai-org/GLM-5.2", label: "GLM 5.2" },
       { id: "moonshotai/Kimi-K2.7-Code", label: "Kimi K2.7 Code" },
+    ],
+  },
+  "github-models": {
+    apiKeyEnvKey: GITHUB_MODELS_API_KEY_ENV_KEY,
+    apiKeyEnvAliases: [GH_MODELS_API_KEY_ENV_KEY],
+    baseURL: "https://models.github.ai/inference",
+    label: "GitHub Models",
+    modelOptions: [
+      { id: "openai/gpt-5-mini", label: "GPT 5 mini" },
+      { id: "openai/gpt-5", label: "GPT 5" },
+      { id: "meta/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
+      { id: "deepseek/deepseek-v3-0324", label: "DeepSeek V3" },
     ],
   },
   fireworks: {
@@ -116,6 +135,25 @@ export function getProviderLabel(provider: OpenWikiProvider): string {
 
 export function getProviderApiKeyEnvKey(provider: OpenWikiProvider): string {
   return getProviderConfig(provider).apiKeyEnvKey;
+}
+
+export function applyProviderEnvAliases(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  for (const config of Object.values(PROVIDER_CONFIGS)) {
+    if (env[config.apiKeyEnvKey]) {
+      continue;
+    }
+
+    for (const alias of config.apiKeyEnvAliases ?? []) {
+      const value = env[alias];
+
+      if (value) {
+        env[config.apiKeyEnvKey] = value;
+        break;
+      }
+    }
+  }
 }
 
 export function getProviderModelOptions(

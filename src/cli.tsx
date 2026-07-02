@@ -33,6 +33,7 @@ import {
   getProviderApiKeyEnvKey,
   getProviderLabel,
   getProviderModelOptions,
+  GITHUB_MODELS_API_KEY_ENV_KEY,
   isValidModelId,
   normalizeModelId,
   normalizeProvider,
@@ -1506,7 +1507,7 @@ function ChatInput({
 
     if (provider === null) {
       setError(
-        "Enter a valid provider: openrouter, baseten, fireworks, openai, or anthropic.",
+        "Enter a valid provider: openrouter, baseten, fireworks, openai, anthropic, or github-models.",
       );
       return;
     }
@@ -2922,6 +2923,7 @@ function sanitizeDiagnosticText(value: string): string {
   for (const key of [
     BASETEN_API_KEY_ENV_KEY,
     FIREWORKS_API_KEY_ENV_KEY,
+    GITHUB_MODELS_API_KEY_ENV_KEY,
     OPENAI_API_KEY_ENV_KEY,
     ANTHROPIC_API_KEY_ENV_KEY,
     OPENROUTER_API_KEY_ENV_KEY,
