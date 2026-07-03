@@ -417,6 +417,7 @@ async function createModel(provider: OpenWikiProvider, modelId: string) {
         baseURL: providerConfig.baseURL,
       },
       model: modelId,
+      streaming: false,
       // The Copilot API serves GPT-5-family models only through the
       // Responses API and other models only through chat completions.
       useResponsesApi: /^gpt-5/u.test(modelId),
