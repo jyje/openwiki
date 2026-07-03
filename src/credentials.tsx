@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useInput, useStdin } from "ink";
 import {
   DEFAULT_PROVIDER,
@@ -90,6 +90,7 @@ export function InitSetup({
   const [copilotAuth, setCopilotAuth] = useState<CopilotAuthState>({
     kind: "idle",
   });
+  const copilotProbeStarted = useRef(false);
   const { setRawMode } = useStdin();
 
   useEffect(() => {
@@ -123,13 +124,15 @@ export function InitSetup({
   }, [initialProvider, modelIdOverride, onComplete]);
 
   useEffect(() => {
-    if (step !== "api-key" || provider !== "copilot") {
+    if (
+      step !== "api-key" ||
+      provider !== "copilot" ||
+      copilotProbeStarted.current
+    ) {
       return;
     }
 
-    if (copilotAuth.kind !== "idle") {
-      return;
-    }
+    copilotProbeStarted.current = true;
 
     let cancelled = false;
     setCopilotAuth({ kind: "checking" });
@@ -158,7 +161,7 @@ export function InitSetup({
     return () => {
       cancelled = true;
     };
-  }, [step, provider, copilotAuth.kind]);
+  }, [step, provider]);
 
   async function launchGhAuthLogin() {
     setCopilotAuth({ kind: "logging-in" });
