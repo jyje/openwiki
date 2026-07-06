@@ -84,9 +84,18 @@ export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
     baseURL: "https://integrate.api.nvidia.com/v1",
     label: "NVIDIA NIM",
     modelOptions: [
-      { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B A12B" },
-      { id: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra 550B A55B" },
-      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", label: "Nemotron 3 Nano Omni 30B A3B" },
+      {
+        id: "nvidia/nemotron-3-super-120b-a12b",
+        label: "Nemotron 3 Super 120B A12B",
+      },
+      {
+        id: "nvidia/nemotron-3-ultra-550b-a55b",
+        label: "Nemotron 3 Ultra 550B A55B",
+      },
+      {
+        id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        label: "Nemotron 3 Nano Omni 30B A3B",
+      },
       { id: "deepseek-ai/deepseek-v4-pro", label: "DeepSeek V4 Pro" },
       { id: "openai/gpt-oss-120b", label: "GPT-OSS 120B" },
       { id: "moonshotai/kimi-k2.6", label: "Kimi K2.6" },
@@ -125,7 +134,7 @@ export const PROVIDER_CONFIGS: Record<OpenWikiProvider, ProviderConfig> = {
       { id: "z-ai/glm-5.2", label: "GLM 5.2" },
       { id: "openrouter/fusion", label: "OpenRouter Fusion" },
       { id: "moonshotai/kimi-k2.7-code", label: "Kimi K2.7 Code" },
-      { id: "anthropic/claude-opus-4.8", label: "Claude Opus" },
+      { id: "anthropic/claude-opus-4-8", label: "Claude Opus" },
       { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet" },
       { id: "openai/gpt-5.4-mini", label: "GPT 5.4 mini" },
       { id: "openai/gpt-5.5", label: "GPT 5.5" },
