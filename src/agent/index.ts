@@ -7,7 +7,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import type { Event as ProtocolEvent } from "@langchain/protocol";
 import { createDeepAgent, LocalShellBackend } from "deepagents";
-import { loadOpenWikiEnv, openWikiEnvDir } from "../env.js";
+import { DEBUG_ENV_KEYS, loadOpenWikiEnv, openWikiEnvDir } from "../env.js";
+import { isFileNotFoundError } from "../fs-errors.js";
 import { createSystemPrompt, createUserPrompt } from "./prompt.js";
 import type {
   OpenWikiCommand,
@@ -16,27 +17,28 @@ import type {
   OpenWikiRunResult,
 } from "./types.js";
 import {
-  ANTHROPIC_API_KEY_ENV_KEY,
-  BASETEN_API_KEY_ENV_KEY,
-  FIREWORKS_API_KEY_ENV_KEY,
+  ANTHROPIC_BASE_URL_ENV_KEY,
   getDefaultModelId,
   getProviderApiKeyEnvKey,
-  getProviderConfig,
+  getProviderBaseUrlEnvKey,
   getProviderLabel,
   isValidModelId,
   normalizeModelId,
-  OPENAI_API_KEY_ENV_KEY,
+  OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,
   OPENROUTER_API_KEY_ENV_KEY,
   OPENROUTER_BASE_URL,
-  OPENROUTER_FALLBACK_MODEL_IDS,
   OPENWIKI_MODEL_ID_ENV_KEY,
   OPENWIKI_PROVIDER_ENV_KEY,
+  providerRequiresBaseUrl,
   resolveConfiguredProvider,
+  resolveProviderBaseUrl,
   type OpenWikiProvider,
 } from "../constants.js";
 import {
   createOpenWikiContentSnapshot,
+  getUpdateNoopStatus,
   createRunContext,
+  shouldCheckUpdateNoop,
   writeLastUpdateMetadata,
 } from "./utils.js";
 
@@ -57,98 +59,50 @@ export async function runOpenWikiAgent(
   await loadOpenWikiEnv();
   emitDebug(options, "env=loaded ~/.openwiki/.env");
   emitDebug(options, `env.afterLoad ${formatEnvironmentDebug()}`);
+
+  if (command === "update" && shouldCheckUpdateNoop(options)) {
+    const noopStatus = await getUpdateNoopStatus(cwd);
+
+    if (noopStatus.shouldSkip) {
+      const message =
+        "No repository changes detected since the last OpenWiki update; skipping agent run.";
+      emitDebug(options, `update.noop gitHead=${noopStatus.gitHead}`);
+      options.onEvent?.({ type: "text", text: message });
+
+      return {
+        command,
+        model: noopStatus.model,
+        skipped: true,
+      };
+    }
+
+    emitDebug(options, `update.noop=false reason=${noopStatus.reason}`);
+  } else if (command === "update") {
+    emitDebug(options, "update.noop=false reason=user message provided");
+  }
+
   const provider = resolveConfiguredProvider();
-  const providerConfig = getProviderConfig(provider);
+  const providerBaseUrl = resolveProviderBaseUrl(provider);
   emitDebug(options, `provider=${provider}`);
-  if (providerConfig.baseURL) {
-    emitDebug(
-      options,
-      `provider.baseUrl=${JSON.stringify(providerConfig.baseURL)}`,
-    );
+  if (providerBaseUrl) {
+    emitDebug(options, `provider.baseUrl=${JSON.stringify(providerBaseUrl)}`);
   }
   ensureProviderKey(provider);
   emitDebug(options, `credentials=${provider} key present`);
+  ensureProviderBaseUrl(provider);
   const modelId = resolveModelId(options, provider);
   emitDebug(options, `model=${modelId}`);
 
   const debugFetchCapture = installOpenRouterDebugFetch(options);
 
   try {
-    return await runOpenWikiAgentWithModelFallbacks(
-      command,
-      cwd,
-      options,
-      provider,
-      modelId,
-      debugFetchCapture,
-    );
+    return await runOpenWikiAgentCore(command, cwd, options, provider, modelId);
   } catch (error) {
     attachOpenRouterDebugInfo(error, debugFetchCapture.getLastFailure());
     throw error;
   } finally {
     debugFetchCapture.restore();
   }
-}
-
-async function runOpenWikiAgentWithModelFallbacks(
-  command: OpenWikiCommand,
-  cwd: string,
-  options: OpenWikiRunOptions,
-  provider: OpenWikiProvider,
-  modelId: string,
-  debugFetchCapture: OpenRouterFetchCapture,
-): Promise<OpenWikiRunResult> {
-  const modelAttempts = createModelRoute(provider, modelId);
-  let lastError: unknown = null;
-
-  for (const [attemptIndex, attemptModelId] of modelAttempts.entries()) {
-    const attemptOptions = createAttemptOptions(options, attemptIndex);
-
-    debugFetchCapture.clearLastFailure();
-
-    if (attemptIndex > 0) {
-      emitDebug(
-        options,
-        `model.retry attempt=${attemptIndex + 1} model=${attemptModelId}`,
-      );
-    }
-
-    try {
-      return await runOpenWikiAgentCore(
-        command,
-        cwd,
-        attemptOptions,
-        provider,
-        attemptModelId,
-      );
-    } catch (error) {
-      const failure = debugFetchCapture.getLastFailure();
-
-      attachOpenRouterDebugInfo(error, failure);
-      lastError = error;
-
-      if (
-        !shouldRetryOpenRouterServerError(
-          failure,
-          attemptIndex,
-          modelAttempts.length,
-        )
-      ) {
-        throw error;
-      }
-
-      emitDebug(
-        options,
-        `model.retrying status=${failure?.response?.status ?? "unknown"} next=${
-          modelAttempts[attemptIndex + 1]
-        }`,
-      );
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("OpenWiki run failed after model fallback attempts.");
 }
 
 async function runOpenWikiAgentCore(
@@ -163,16 +117,8 @@ async function runOpenWikiAgentCore(
   const openWikiSnapshotBefore =
     command === "chat" ? null : await createOpenWikiContentSnapshot(cwd);
   emitDebug(options, "openwiki.snapshot=created");
-  const model = await createModel(provider, modelId);
+  const model = createModel(provider, modelId);
   emitDebug(options, `model.provider=${provider}`);
-  if (provider === "openrouter") {
-    emitDebug(
-      options,
-      `openrouter.route=fallback models=${JSON.stringify(
-        createModelRoute(provider, modelId),
-      )}`,
-    );
-  }
   emitDebug(options, "model=initialized");
   const checkpointer = await createCheckpointer();
   emitDebug(options, `checkpointer=${formatUrlDebugValue(checkpointPath)}`);
@@ -253,22 +199,6 @@ async function runOpenWikiAgentCore(
   };
 }
 
-function createAttemptOptions(
-  options: OpenWikiRunOptions,
-  attemptIndex: number,
-): OpenWikiRunOptions {
-  if (attemptIndex === 0) {
-    return options;
-  }
-
-  return {
-    ...options,
-    threadId: options.threadId
-      ? `${options.threadId}-retry-${attemptIndex}`
-      : undefined,
-  };
-}
-
 const checkpointPath = path.join(openWikiEnvDir, "openwiki.sqlite");
 
 function createRunUserMessage(
@@ -344,20 +274,26 @@ function emitDebug(options: OpenWikiRunOptions, message: string): void {
   });
 }
 
-function isFileNotFoundError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
-}
-
 function ensureProviderKey(provider: OpenWikiProvider): void {
   const apiKeyEnvKey = getProviderApiKeyEnvKey(provider);
 
   if (!process.env[apiKeyEnvKey]) {
     throw new Error(
       `${apiKeyEnvKey} is required to run OpenWiki with ${getProviderLabel(provider)}.`,
+    );
+  }
+}
+
+function ensureProviderBaseUrl(provider: OpenWikiProvider): void {
+  if (!providerRequiresBaseUrl(provider)) {
+    return;
+  }
+
+  if (!resolveProviderBaseUrl(provider)) {
+    const baseUrlEnvKey = getProviderBaseUrlEnvKey(provider) ?? "base URL";
+
+    throw new Error(
+      `${baseUrlEnvKey} is required to run OpenWiki with ${getProviderLabel(provider)}.`,
     );
   }
 }
@@ -381,63 +317,37 @@ function resolveModelId(
   return modelId;
 }
 
-async function createModel(provider: OpenWikiProvider, modelId: string) {
+function createModel(provider: OpenWikiProvider, modelId: string) {
   if (provider === "anthropic") {
+    const baseURL = resolveProviderBaseUrl(provider);
+
     return new ChatAnthropic(modelId, {
       apiKey: process.env[getProviderApiKeyEnvKey(provider)],
+      ...(baseURL ? { anthropicApiUrl: baseURL } : {}),
     });
   }
 
   if (provider === "openrouter") {
-    const models = createModelRoute(provider, modelId);
-
     return new ChatOpenRouter({
       apiKey: process.env[OPENROUTER_API_KEY_ENV_KEY],
       baseURL: OPENROUTER_BASE_URL,
       model: modelId,
-      models,
-      route: "fallback",
       siteName: "OpenWiki",
     });
   }
 
-  const providerConfig = getProviderConfig(provider);
+  const baseURL = resolveProviderBaseUrl(provider);
 
   return new ChatOpenAI({
     apiKey: process.env[getProviderApiKeyEnvKey(provider)],
-    configuration: providerConfig.baseURL
+    configuration: baseURL
       ? {
-          baseURL: providerConfig.baseURL,
+          baseURL,
         }
       : undefined,
     model: modelId,
+    useResponsesApi: provider === "openai",
   });
-}
-
-function createModelRoute(
-  provider: OpenWikiProvider,
-  modelId: string,
-): string[] {
-  if (provider !== "openrouter") {
-    return [modelId];
-  }
-
-  return Array.from(new Set([modelId, ...OPENROUTER_FALLBACK_MODEL_IDS]));
-}
-
-function shouldRetryOpenRouterServerError(
-  failure: OpenRouterFetchFailure | null,
-  attemptIndex: number,
-  attemptCount: number,
-): boolean {
-  const status = failure?.response?.status;
-
-  return (
-    attemptIndex < attemptCount - 1 &&
-    typeof status === "number" &&
-    status >= 500 &&
-    status < 600
-  );
 }
 
 function parseStreamEvent(chunk: unknown): OpenWikiRunEvent | null {
@@ -746,7 +656,7 @@ function getMessageRole(value: Record<string, unknown>): string | null {
   }
 
   try {
-    const role = getType.call(value);
+    const role: unknown = getType.call(value);
 
     return isMessageRole(role) ? role : null;
   } catch {
@@ -1103,7 +1013,7 @@ function getOpenRouterMessageChars(messages: unknown): number | undefined {
     return undefined;
   }
 
-  return messages.reduce((total, message) => {
+  return messages.reduce<number>((total, message) => {
     if (!isRecord(message)) {
       return total;
     }
@@ -1118,7 +1028,7 @@ function countMessageContentChars(content: unknown): number {
   }
 
   if (Array.isArray(content)) {
-    return content.reduce(
+    return content.reduce<number>(
       (total, block) => total + countMessageContentChars(block),
       0,
     );
@@ -1152,7 +1062,7 @@ async function readResponseBodyPreview(response: Response): Promise<string> {
   }
 }
 
-function sanitizeOpenRouterResponseBody(body: string): string {
+export function sanitizeOpenRouterResponseBody(body: string): string {
   return body.replace(
     /"([^"]*(?:api[-_]?key|authorization|bearer|password|secret|token|user_id)[^"]*)"\s*:\s*"[^"]*"/giu,
     (_, key: string) => `${JSON.stringify(key)}:"[REDACTED]"`,
@@ -1189,22 +1099,9 @@ function formatOpenRouterDebugUrl(value: string): string {
 }
 
 function formatEnvironmentDebug(): string {
-  const keys = [
-    OPENWIKI_PROVIDER_ENV_KEY,
-    BASETEN_API_KEY_ENV_KEY,
-    FIREWORKS_API_KEY_ENV_KEY,
-    OPENAI_API_KEY_ENV_KEY,
-    ANTHROPIC_API_KEY_ENV_KEY,
-    OPENROUTER_API_KEY_ENV_KEY,
-    OPENWIKI_MODEL_ID_ENV_KEY,
-    "LANGCHAIN_TRACING_V2",
-    "LANGCHAIN_PROJECT",
-    "LANGCHAIN_ENDPOINT",
-  ];
-
-  return keys
-    .map((key) => `${key}:${formatDebugValue(key, process.env[key])}`)
-    .join(" ");
+  return DEBUG_ENV_KEYS.map(
+    (key) => `${key}:${formatDebugValue(key, process.env[key])}`,
+  ).join(" ");
 }
 
 function formatDebugValue(key: string, value: string | undefined): string {
@@ -1212,7 +1109,11 @@ function formatDebugValue(key: string, value: string | undefined): string {
     return "unset";
   }
 
-  if (key === "LANGCHAIN_ENDPOINT") {
+  if (
+    key === "LANGCHAIN_ENDPOINT" ||
+    key === ANTHROPIC_BASE_URL_ENV_KEY ||
+    key === OPENAI_COMPATIBLE_BASE_URL_ENV_KEY
+  ) {
     return formatUrlDebugValue(value);
   }
 
