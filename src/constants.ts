@@ -331,7 +331,9 @@ export function resolveConfiguredProvider(
               ? "baseten"
               : env[FIREWORKS_API_KEY_ENV_KEY]
                 ? "fireworks"
-                : DEFAULT_PROVIDER)
+                : env[NVIDIA_API_KEY_ENV_KEY]
+                  ? "nvidia"
+                  : DEFAULT_PROVIDER)
   );
 }
 

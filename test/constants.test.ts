@@ -78,6 +78,10 @@ describe("resolveConfiguredProvider", () => {
     );
   });
 
+  test("falls back to nvidia when only an NVIDIA key is present", () => {
+    expect(resolveConfiguredProvider({ NVIDIA_API_KEY: "x" })).toBe("nvidia");
+  });
+
   test("falls back to the default provider when nothing is configured", () => {
     expect(resolveConfiguredProvider({})).toBe(DEFAULT_PROVIDER);
   });
