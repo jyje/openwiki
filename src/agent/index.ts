@@ -41,7 +41,6 @@ import {
   getProviderApiKeyEnvKey,
   getProviderBaseUrlEnvKey,
   getProviderLabel,
-  GITHUB_MODELS_API_KEY_ENV_KEY,
   isValidModelId,
   normalizeModelId,
   OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,

@@ -63,7 +63,6 @@ import {
   getProviderApiKeyEnvKey,
   getProviderLabel,
   getProviderModelOptions,
-  GITHUB_MODELS_API_KEY_ENV_KEY,
   isValidModelId,
   normalizeModelId,
   normalizeProvider,
