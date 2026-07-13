@@ -1888,7 +1888,7 @@ function ChatInput({
 
     if (provider === null) {
       setError(
-        "Enter a valid provider: openai, openrouter, baseten, fireworks, anthropic, or copilot.",
+        "Enter a valid provider: openai, openrouter, baseten, fireworks, nvidia, anthropic, or copilot.",
       );
       return;
     }

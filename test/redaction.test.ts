@@ -10,11 +10,13 @@ describe("sanitizeDiagnosticText", () => {
   const originalOpenAiKey = process.env.OPENAI_API_KEY;
   const originalOpenAiCompatibleKey = process.env.OPENAI_COMPATIBLE_API_KEY;
   const originalCopilotKey = process.env.COPILOT_API_KEY;
+  const originalNvidiaKey = process.env.NVIDIA_API_KEY;
 
   beforeEach(() => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_COMPATIBLE_API_KEY;
     delete process.env.COPILOT_API_KEY;
+    delete process.env.NVIDIA_API_KEY;
   });
 
   afterEach(() => {
@@ -33,6 +35,12 @@ describe("sanitizeDiagnosticText", () => {
       delete process.env.COPILOT_API_KEY;
     } else {
       process.env.COPILOT_API_KEY = originalCopilotKey;
+    }
+
+    if (originalNvidiaKey === undefined) {
+      delete process.env.NVIDIA_API_KEY;
+    } else {
+      process.env.NVIDIA_API_KEY = originalNvidiaKey;
     }
   });
 
@@ -56,6 +64,17 @@ describe("sanitizeDiagnosticText", () => {
 
     expect(result).not.toContain("ghu_secret-value-67890");
     expect(result).toContain("[REDACTED:COPILOT_API_KEY]");
+  });
+
+  test("redacts the exact value of NVIDIA_API_KEY when set", () => {
+    process.env.NVIDIA_API_KEY = "nvapi-secret-value-67890";
+
+    const result = sanitizeDiagnosticText(
+      "request failed with key nvapi-secret-value-67890 attached",
+    );
+
+    expect(result).not.toContain("nvapi-secret-value-67890");
+    expect(result).toContain("[REDACTED:NVIDIA_API_KEY]");
   });
 
   test("redacts OpenAI-style sk- tokens", () => {

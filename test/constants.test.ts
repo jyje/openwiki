@@ -22,6 +22,7 @@ describe("isValidModelId", () => {
     expect(isValidModelId("accounts/fireworks/models/glm-5p2")).toBe(true);
     expect(isValidModelId("gpt-5.4-mini")).toBe(true);
     expect(isValidModelId("claude-sonnet-5")).toBe(true);
+    expect(isValidModelId("nvidia/nemotron-3-super-120b-a12b")).toBe(true);
   });
 
   test("rejects empty, whitespace-only, and over-long ids", () => {
@@ -61,6 +62,7 @@ describe("normalizeProvider / isValidProvider", () => {
     expect(isValidProvider("anthropic")).toBe(true);
     expect(isValidProvider("openai-compatible")).toBe(true);
     expect(isValidProvider("copilot")).toBe(true);
+    expect(isValidProvider("nvidia")).toBe(true);
     expect(isValidProvider("nope")).toBe(false);
   });
 });
@@ -76,6 +78,10 @@ describe("resolveConfiguredProvider", () => {
     expect(resolveConfiguredProvider({ OPENROUTER_API_KEY: "x" })).toBe(
       "openrouter",
     );
+  });
+
+  test("falls back to nvidia when only an NVIDIA key is present", () => {
+    expect(resolveConfiguredProvider({ NVIDIA_API_KEY: "x" })).toBe("nvidia");
   });
 
   test("falls back to the default provider when nothing is configured", () => {
@@ -96,6 +102,9 @@ describe("resolveProviderBaseUrl", () => {
     );
     expect(resolveProviderBaseUrl("copilot", {})).toBe(
       "https://api.githubcopilot.com",
+    );
+    expect(resolveProviderBaseUrl("nvidia", {})).toBe(
+      "https://integrate.api.nvidia.com/v1",
     );
   });
 
@@ -185,6 +194,9 @@ describe("getDefaultModelId", () => {
   test("returns the first model option for a provider", () => {
     expect(getDefaultModelId("anthropic")).toBe("claude-haiku-4-5");
     expect(getDefaultModelId("copilot")).toBe("gpt-5.5");
+    expect(getDefaultModelId("nvidia")).toBe(
+      "nvidia/nemotron-3-super-120b-a12b",
+    );
     expect(getDefaultModelId(DEFAULT_PROVIDER)).toBe(DEFAULT_MODEL_ID);
   });
 
