@@ -84,6 +84,10 @@ describe("resolveConfiguredProvider", () => {
     expect(resolveConfiguredProvider({ NVIDIA_API_KEY: "x" })).toBe("nvidia");
   });
 
+  test("falls back to copilot when only a COPILOT_API_KEY is present", () => {
+    expect(resolveConfiguredProvider({ COPILOT_API_KEY: "x" })).toBe("copilot");
+  });
+
   test("falls back to the default provider when nothing is configured", () => {
     expect(resolveConfiguredProvider({})).toBe(DEFAULT_PROVIDER);
   });

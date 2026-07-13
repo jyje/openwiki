@@ -353,7 +353,9 @@ export function resolveConfiguredProvider(
                 ? "fireworks"
                 : env[NVIDIA_API_KEY_ENV_KEY]
                   ? "nvidia"
-                  : DEFAULT_PROVIDER)
+                  : env[COPILOT_API_KEY_ENV_KEY]
+                    ? "copilot"
+                    : DEFAULT_PROVIDER)
   );
 }
 
