@@ -47,6 +47,7 @@ import {
   OPENAI_COMPATIBLE_BASE_URL_ENV_KEY,
   OPENROUTER_API_KEY_ENV_KEY,
   OPENROUTER_BASE_URL,
+  OPENWIKI_DISABLE_STREAMING_ENV_KEY,
   OPENWIKI_MODEL_ID_ENV_KEY,
   OPENWIKI_PROVIDER_ENV_KEY,
   OPENWIKI_PROVIDER_RETRY_ATTEMPTS_ENV_KEY,
@@ -510,6 +511,15 @@ function createModel(
 
   const baseURL = resolveProviderBaseUrl(provider);
 
+  // Some OpenAI-compatible endpoints drop the tool_call's function name when
+  // streaming (confirmed against Upstage's Solar models: a non-streaming
+  // request returns the correct function name, the same request with
+  // `stream: true` returns an empty name, which then fails schema
+  // validation on the next turn). Opt-in escape hatch since most
+  // openai-compatible providers stream tool calls correctly.
+  const disableStreaming =
+    process.env[OPENWIKI_DISABLE_STREAMING_ENV_KEY] === "true";
+
   return new ChatOpenAI({
     apiKey: process.env[getProviderApiKeyEnvKey(provider)],
     configuration: baseURL
@@ -519,6 +529,7 @@ function createModel(
       : undefined,
     model: modelId,
     useResponsesApi: provider === "openai",
+    ...(disableStreaming ? { streaming: false } : {}),
     ...retryOptions,
   });
 }
