@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-19T08:53:30.850Z",
+  "updatedAt": "2026-07-21T15:07:22.089Z",
   "command": "update",
-  "gitHead": "ac5007cb64a68297c3b4d06ed7cfb392f15baf9e",
-  "model": "z-ai/glm-5.2"
+  "gitHead": "54424940ebdfbd7b485ddc16d3c234a49995f4ff",
+  "model": "nvidia/nemotron-3-super-120b-a12b:free"
 }
