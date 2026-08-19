@@ -26,15 +26,14 @@ OpenWiki is a CLI that writes and maintains a wiki for your codebase or your per
 - **Built-in connectors** for Custom MCP, Notion, Slack, Gmail, X, Web Search, Hacker News, and local git repositories.
 - **An interactive visualizer** that turns any wiki into a live, explorable node graph.
 - **Self-updating** through GitHub Actions, GitLab CI, or Bitbucket Pipelines.
-- **Open Knowledge Format** ([OKF v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)) output with validated Mermaid diagrams.
+- **Open Knowledge Format** ([OKF v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)) output with validated Mermaid diagrams.
 
 ## 🎉 What's new
 
-- **Interactive visualizer:** turn any wiki into a live, explorable node graph with a side-by-side Markdown reader.
-- **`.openwikiignore`:** keep generated, private, or irrelevant paths out of doc runs with familiar gitignore-style rules.
-- **Multilingual wikis:** generate docs in another language with `--language <locale>`, while code and identifiers stay canonical.
-- **LangSmith connector:** pull recent LangSmith traces (tool calls, outcomes, latency) into a code wiki.
-- **GitHub Copilot provider:** reuse an existing Copilot subscription for inference, no separate API key required.
+- **Custom MCP connector:** point OpenWiki at any MCP server and pull its tools into a run, no bespoke integration required.
+- **LangSmith APAC region:** the LangSmith connector now works against APAC-hosted workspaces.
+- **OpenAI Responses API:** OpenAI-compatible providers can opt into the Responses API instead of Chat Completions.
+- **Provider-aware CI:** the generated self-update workflow now emits an env block matched to your configured provider, so scheduled runs work out of the box.
 
 ## Quick start
 
@@ -88,8 +87,16 @@ This serves `./openwiki` on a local loopback address (`127.0.0.1`, never exposed
 openwiki visualize openwiki --port 4400 --no-open
 ```
 
+To publish the visualizer beside generated documentation, export a static directory instead of starting the server:
+
+```sh
+openwiki visualize openwiki --export docs/openwiki-visualizer
+```
+
+The export contains `index.html`, `client.js`, `client-lib.js`, and `graph.json`. Its client reads the sibling graph file and does not use live reload, so the directory can be hosted by GitHub Pages, MkDocs, or any other static host. `--export` cannot be combined with `--port` or `--no-open`.
+
 > [!NOTE]
-> The page loads its graph, Markdown, and diagram libraries from a public CDN, so an internet connection is required even though the server itself is local. Press Ctrl-C to stop it.
+> The page loads its graph, Markdown, and diagram libraries from a public CDN, so an internet connection is required for both local and static viewers.
 
 ## Connect your sources
 
@@ -149,12 +156,14 @@ Everything OpenWiki writes is plain Markdown you own and version alongside your 
 
 ## Open Knowledge Format
 
-OpenWiki emits [Google Open Knowledge Format (OKF) v0.1](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundles in both modes, so your wiki is portable to any OKF-aware tool.
+OpenWiki emits [Google Open Knowledge Format (OKF) v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundles in both modes, so your wiki is portable to any OKF-aware tool.
 
 - Every concept document carries YAML front matter with a non-empty `type`; all other standard fields are optional.
+- Pages record their last meaningful change as `generated: {by, at}`; the legacy v0.1 `timestamp` field is still tolerated on existing pages.
+- The optional v0.2 provenance, trust, and lifecycle families (`sources`, `verified`, `status`, `stale_after`) are validated when present.
 - Standard Markdown links between concept documents express their relationships.
-- `index.md` and `log.md` are reserved documents rather than concepts. The root index declares `okf_version: "0.1"`.
-- Valid `timestamp` values and producer-defined extension fields are preserved across updates and migrations.
+- `index.md` and `log.md` are reserved documents rather than concepts. The root index declares `okf_version: "0.2"`.
+- Producer-defined extension fields are preserved across updates and migrations.
 
 ## Diagrams
 
@@ -308,6 +317,14 @@ OPENWIKI_MODEL_ID=your-loaded-model-id
 
 Some local servers ignore the API key value, but OpenWiki still requires `OPENAI_COMPATIBLE_API_KEY` because the client expects one.
 
+**Streaming-only gateways.** Some gateways serve only the streaming transport: a non-streaming request is either rejected outright (`Stream must be set to true`) or answered with HTTP 200 and empty content, which leaves you with a blank wiki and no error. OpenWiki issues non-streaming requests internally, so force the streaming transport for those endpoints:
+
+```bash
+OPENWIKI_OPENAI_COMPATIBLE_STREAMING=true
+```
+
+It stays off by default because this provider points at arbitrary third-party endpoints, where SSE is not guaranteed to survive proxies and load balancers. Enabling it also makes the client report estimated rather than server-reported token counts.
+
 </details>
 
 <details>
@@ -341,6 +358,12 @@ A cap trades those hard 402 failures for possible truncation when a long wiki ge
 
 **Retry attempts.** OpenWiki uses LangChain's retry handling for transient provider errors. Override the retry count (default 3) with `OPENWIKI_PROVIDER_RETRY_ATTEMPTS=3` (a positive integer).
 
+**Model output token limit.** Set `OPENWIKI_MAX_OUTPUT_TOKENS` (a positive integer) to override the maximum number of tokens generated in a model response, for example `OPENWIKI_MAX_OUTPUT_TOKENS=8192`. If unset, OpenWiki does not override the model client's output token limit. Provider and model limits still apply; unsupported values may be rejected, while very small values can truncate responses or tool calls.
+
+**Bedrock stream idle timeout.** For the Bedrock provider, set `OPENWIKI_STREAM_IDLE_TIMEOUT` to control how long the client waits for the first or next streamed response chunk, for example `OPENWIKI_STREAM_IDLE_TIMEOUT=300000`. The value is milliseconds and must be an integer from `0` to `2147483647`. Set it to `0` to disable the watchdog. If unset, OpenWiki preserves the `@langchain/aws` provider default. Prefer a sufficiently long finite timeout over disabling the watchdog so a stalled stream cannot hang forever.
+
+**Reasoning effort.** Set `OPENWIKI_REASONING_EFFORT` to configure reasoning for a supported provider and model. OpenAI GPT-5.6 models use the Responses API values `none`, `low`, `medium`, `high`, `xhigh`, and `max`. NVIDIA NIM's Nemotron 3 Super supports `none`, `low`, and `high`. In an interactive chat, use `/effort` to choose an available value or `/effort default` to restore the provider default. Leave the variable unset to preserve the provider default; invalid provider, model, or effort combinations fail before a request is sent.
+
 </details>
 
 > [!NOTE]
@@ -368,6 +391,7 @@ openwiki -p "what can you do?"   # one-shot, print, and exit
 openwiki --init                  # initialize code docs (personal: openwiki personal --init)
 openwiki --update                # update code docs (personal: openwiki personal --update)
 openwiki visualize               # interactive graph + live reader
+openwiki visualize openwiki --export docs/openwiki-visualizer  # static graph + reader
 openwiki auth <provider>         # authenticate a connector (slack, gmail, x, notion)
 openwiki ingest <source>         # run connector ingestion (all, or a connector/instance)
 openwiki --help                  # full help
