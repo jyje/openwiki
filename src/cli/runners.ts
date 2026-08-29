@@ -37,6 +37,7 @@ import { isDebugMode } from "./debug.js";
 import { getAuthFix, getAuthFixSteps } from "./diagnostics/auth-fix.js";
 import { getErrorDiagnostics } from "./diagnostics/error-diagnostics.js";
 import { getRunModeCwd, getRunModeOutputMode } from "./run-mode.js";
+import { formatRepositoryPrintProgress } from "./run-log/progress.js";
 import {
   formatPowerScheduleStatus,
   formatScheduleHeader,
@@ -157,7 +158,7 @@ export async function runIngestCommand(
       scheduledOnly: command.scheduledOnly,
       target: command.target,
       onEvent: (event) => {
-        if (event.type === "text" && event.source !== "subgraph") {
+        if (event.type === "text") {
           process.stdout.write(event.text);
         }
       },
@@ -267,8 +268,10 @@ export async function runPrintCommand(
     const runtimeOutputMode = getRunModeOutputMode(command.mode);
 
     const handlePrintEvent = (event: OpenWikiRunEvent): void => {
-      if (event.type === "text" && event.source !== "subgraph") {
+      if (event.type === "text") {
         output.push(event.text);
+      } else if (event.type === "repository_progress") {
+        output.push(formatRepositoryPrintProgress(event, command.command));
       }
     };
 

@@ -2,13 +2,28 @@ import { describe, expect, test } from "vitest";
 import { createSystemPrompt } from "../../src/agent/prompt.ts";
 
 describe("createSystemPrompt OKF guidance", () => {
-  test("keeps init requirements compact and update preservation explicit", () => {
-    const init = createSystemPrompt("init", "repository");
-    const update = createSystemPrompt("update", "repository");
+  test("does not emit the retired OpenWiki producer extension", () => {
+    const prompts = [
+      createSystemPrompt("chat", "repository"),
+      createSystemPrompt("init", "local-wiki"),
+      createSystemPrompt("update", "local-wiki"),
+    ];
+    for (const prompt of prompts) {
+      expect(prompt).not.toContain("<openwiki_extension>");
+      expect(prompt).not.toContain("openwiki.roles");
+      expect(prompt).not.toContain("change_kinds:");
+    }
+  });
 
-    expect(init).toContain("Only type is required by OKF");
-    expect(init).toContain("index.md and log.md are reserved");
-    expect(init).not.toContain(
+  test("keeps init requirements compact and update preservation explicit", () => {
+    const init = createSystemPrompt("init", "local-wiki");
+    const update = createSystemPrompt("update", "local-wiki");
+
+    expect(init).toContain("Only `type` is required");
+    expect(init).toContain(
+      "`index.md` and `log.md` are reserved OKF documents",
+    );
+    expect(init).toContain(
       "Preserve all existing producer-defined front matter fields",
     );
     expect(update).toContain(
@@ -24,8 +39,8 @@ describe("createSystemPrompt OKF guidance", () => {
   });
 
   test("targets OKF v0.2 and cedes the generated field to code in every mode", () => {
-    const init = createSystemPrompt("init", "repository");
-    const update = createSystemPrompt("update", "repository");
+    const init = createSystemPrompt("init", "local-wiki");
+    const update = createSystemPrompt("update", "local-wiki");
     const personalUpdate = createSystemPrompt("update", "local-wiki");
 
     for (const prompt of [init, update, personalUpdate]) {
@@ -39,10 +54,18 @@ describe("createSystemPrompt OKF guidance", () => {
       expect(prompt).not.toContain("by: openwiki/");
       expect(prompt).not.toContain("{OKF_PRODUCER_ACTOR}");
       expect(prompt).toContain(
-        "OpenWiki stamps generated provenance (last meaningful change) deterministically",
+        "OpenWiki stamps generated provenance (last body change) deterministically",
       );
     }
-    expect(init).toContain("valid OKF v0.2 YAML front matter");
+    expect(init).toContain("Google Knowledge Catalog OKF v0.2 schema");
+    for (const prompt of [init, update, personalUpdate]) {
+      expect(prompt).not.toContain(
+        "OpenWiki projects Claims evidence into sources deterministically",
+      );
+      expect(prompt).not.toContain(
+        "OpenWiki stamps verified only after complete Claims reconciliation",
+      );
+    }
     for (const prompt of [update, personalUpdate]) {
       expect(prompt).toContain("Google Knowledge Catalog OKF v0.2 schema");
       expect(prompt).toContain('okf_version: "0.2"');
